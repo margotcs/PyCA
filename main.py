@@ -24,7 +24,7 @@ random = True
 r = 3
 k = 3
 
-auto = GeneralCA1D((H,W),wolfram_num=1203,r=r,k=k,random=random) 
+#auto = GeneralCA1D((H,W),wolfram_num=1203,r=r,k=k,random=random) 
 ################################################################
 
 #################   ELEMENTARY CA   #################################
@@ -38,11 +38,16 @@ auto = GeneralCA1D((H,W),wolfram_num=1203,r=r,k=k,random=random)
 # auto = Baricelli1D((H,W),n_species=6,reprod_collision=False)
 
 #################   2D   ###########################################
-auto = Baricelli2D((H,W),n_species=7,reprod_collision=True,device='cuda')
+#auto = Baricelli2D((H,W),n_species=7,reprod_collision=True,device='cuda')
+
+#auto = Baricelli2D((H,W),n_species=3,reprod_collision=True,device='cpu')
+
 ################################################################
 
 #################   CA2D   #################################
 auto = CA2D((H,W),b_num='3',s_num='23',random=random)
+
+
 # Booleans for mouse events
 stopped=True
 add_drag = False
