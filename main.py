@@ -7,9 +7,15 @@ from Camera import Camera
 from CA1D import CA1D, GeneralCA1D
 from CA2D import CA2D
 from Baricelli import Baricelli1D, Baricelli2D
+#from MonCA import MonCA§
+from NewCATry import NewCATry
+from CA2DCopy import CA2DCopy
+from CA2DMoreChannels import CA2DMoreChannels
+from CA2D25_04 import CA2D25_04
+from CA2D26_04 import CA2D26_04
 from utils import launch_video, add_frame, save_image
 pygame.init()
-W,H =400,300 # Width and height of the window
+W,H =400,300 # Width and height of the window #de base 400*300
 fps = 30 # Visualization (target) frames per second
 
 screen = pygame.display.set_mode((W,H),flags=pygame.SCALED|pygame.RESIZABLE)
@@ -45,11 +51,19 @@ k = 3
 ################################################################
 
 #################   CA2D   #################################
-auto = CA2D((H,W),b_num='3',s_num='23',random=random)
+#auto = CA2D((H,W),b_num='3',s_num='23',random=random)
+
+###################################################################
+#auto = NewCATry((H,W))
+#auto = MonCA((H,W),n_species=3,reprod_collision=True,device='cpu')
+#auto = CA2DCopy((H,W),random=random)
+#auto = CA2DMoreChannels((H,W),random=random)
+#auto = CA2D25_04((H,W), random = random)
+auto = CA2D26_04((H,W), random = random)
 
 
 # Booleans for mouse events
-stopped=True
+stopped= False #de base c'etait true
 add_drag = False
 rem_drag = False
 recording=False
