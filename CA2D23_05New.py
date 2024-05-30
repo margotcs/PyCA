@@ -16,7 +16,7 @@ from Automaton import Automaton
 import torch, pygame, random
 from matplotlib.colors import hsv_to_rgb
 
-class CA2D26_04(Automaton):
+class CA2D23_05New(Automaton):
 
 
     def __init__(self, size, random=False):
@@ -36,9 +36,11 @@ class CA2D26_04(Automaton):
         #self.world = torch.randint(-n_species,n_species+1,(self.h,self.w,2),dtype=torch.int,device=device)
         
         self.infectedWorld = True
-        self.reproduction = False
-        self.nbChannels = 3
-        self.gestationTime = 3
+        self.reproduction = True
+        self.death = True
+        self.nbChannels = 4
+        self.gestationTime = 1
+        self.lifeTime = 25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
@@ -81,7 +83,12 @@ class CA2D26_04(Automaton):
         setBirthMask =  torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
         setBirthMask[:,:,2] = self.world[:,:,0] != 0
         self.world[setBirthMask] = self.gestationTime
-
+        
+        #initialize death clock : give lifeTime to all non empty cells : 
+        setDeathMask =  torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        setDeathMask[:,:,3] = self.world[:,:,0] != 0
+        self.world[setDeathMask] = self.lifeTime   
+            
         """#truc de base : 
         if(self.random):
             self.world = self.get_init_mat(0.5)
@@ -191,21 +198,21 @@ class CA2D26_04(Automaton):
             #move to the north :
             
             shiftedWorld = self.world.roll(-1,0) # south tensor
-            pregMask0, pregMask1, pregMask2 = self.move(shiftedWorld, 1)
+            pregMask = self.move(shiftedWorld, 1)
         elif movingDirection == 2:
             #move to the east :
             shiftedWorld = self.world.roll(1,1) #roll +1 in the dimension 1: roll to the right. Like this at the same emplacement we see what's on the west
-            pregMask0, pregMask1, pregMask2 = self.move(shiftedWorld, 2)
+            pregMask = self.move(shiftedWorld, 2)
    
         elif movingDirection == 3:
             #move to the south
             shiftedWorld = self.world.roll(1,0) # north tensor
-            pregMask0, pregMask1, pregMask2 = self.move(shiftedWorld, 3)
+            pregMask = self.move(shiftedWorld, 3)
             
         elif movingDirection == 4:
             #move to the west :
             shiftedWorld = self.world.roll(-1,1) #roll -1 in the dimension 1: roll to the left. Like this at the same emplacement we see what's on the east
-            pregMask0, pregMask1, pregMask2 = self.move(shiftedWorld, 4)
+            pregMask = self.move(shiftedWorld, 4)
    
            #visuWorld = self.world.numpy()
             
@@ -221,11 +228,29 @@ class CA2D26_04(Automaton):
         direction = 1
         pregMask0, pregMask1, pregMask2 = self.moveOld(s, direction) 
         """
+      #### part about death ## 
+      
+        if self.death:
             
-                
+            # decrease le life time de 1, pour toutes les non empty cells 
+            agingMask = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+            agingMask[:,:,3] = (self.world[:,:,0] != 0) 
+            self.world[agingMask] -= 1
+            if (self.world[:,:,3] < 0).any():
+                raise ValueError("Something went wrong with the death mechanism")
+            
+            #if some cells have their life at zero, make them die.
+            visuWorld = self.world.numpy()
+            dyingMask = (self.world[:,:,3] == 0) & (self.world[:,:,0] !=0)
+            # above mask selects all non empty cells that have zero life time left.
+            visudyingMask = dyingMask.numpy()
+            self.deathMechanism(dyingMask)
+            
       #### part about birth ##
         if self.reproduction:
-            self.birth(pregMask0, pregMask1, pregMask2)
+            #les pregMask sont calculés pendant le deplacement, vu que seulement
+            #ceux qui bougent ont un bébé
+            self.birth(pregMask) #function that makes the actual birth
 
             visuWorld = self.world.numpy()
             # a la fin : decrease la birth clock de 1, pour toutes les non empty cells 
@@ -244,41 +269,25 @@ class CA2D26_04(Automaton):
             test = 1
         
         
-        
-        
-        
-        
-        
-      #### below is thing I tried before 
-      #les seuls qui vont avoir des bébés c'est ceux qui bougent, sinon pas de place
-      #ils vont pondre a l'endroit d'ou ils viennent de partir donc je peux reutiliser northDepartures
-      
-      
-      
-      
-        #random_probabilities = torch.rand_like(self.world)
-        """
-        new_world = torch.zeros_like(self.world)
-        infectionMask = (infection == 1)
-        random_probabilities = torch.rand_like(self.world)
-        combinedMask = (random_probabilities < 1/8) & infectionMask
-        new_world[combinedMask] = 1
-        #infection[self.world == 0] = 0 #put to zero places where anyway there were no hamster
-        """
-        #self.world = torch.where(new_world==1,1,0).to(torch.int)
-
-        #self.world = new_world.to(torch.int)
-        #self.world = torch.where(infection==1,1,0).to(torch.int)
-
-        # self.world = n
-        #self.world = torch.where(self.world==1,self.get_nth_bit(self.s_num,count),self.get_nth_bit(self.b_num,count)).to(torch.int)
+            
     
     
-    def birth(self, pregMask0, pregMask1, pregMask2):
+    def birth(self, pregMask):
         
-        # set the type of the rodent
+        #from a (h,w) mask, prepare the ones adapted to each channels:
+        zeros = torch.zeros(self.h, self.w, dtype=torch.bool)
+        pregMask0 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        pregMask0[:,:,:] = torch.stack([pregMask, zeros, zeros, zeros], dim=2)
+        pregMask1 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        pregMask1[:,:,:] = torch.stack([zeros, pregMask,zeros, zeros], dim=2)
+        pregMask2 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        pregMask2[:,:,:] = torch.stack([zeros,zeros, pregMask, zeros], dim=2)
+        pregMask3 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        pregMask3[:,:,:] = torch.stack([zeros, zeros, zeros, pregMask], dim=2)
+
+            
+        # set the type of the rodent which will be bornt
         self.world[pregMask0] = 1 #birth of a non infected rodent
-        
         #set its direction
         random_directions = torch.randint(1, 5, (self.h, self.w, self.nbChannels))
         random_directions = random_directions.to(self.world.dtype)
@@ -287,50 +296,30 @@ class CA2D26_04(Automaton):
         #set its birth clock (starts far from being pregnant)
         self.world[pregMask2] = self.gestationTime 
         
+        #build the lifetime mask from pregMaskTest :
+        visupregMask3 = pregMask3.numpy()
+        self.world[pregMask3] = self.lifeTime
         
-    def moveOld(self, shiftedWorld, direction):
-          #movement of rodents towards north 
-          shiftedWorld
-          # for destinations the filter must have same values on all channel because I want to replace the whole individual
-          # and not only change its state infected or not 
-          destinations = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          destinations[:, :, :] = torch.stack([(self.world[:, :, 0] == 0) & (shiftedWorld[:, :, 1] == direction)] * self.nbChannels, dim=self.nbChannels -1) # le -1 vient du fait qu'il commence a compter les dimensions a zero
-          #the line above stack the (h,w) filters to fill up all channels in northDestinations
-          #visudesti = northDestinations.numpy()
-          if direction == 1:
-              departures = destinations.roll(1,0)  #+1 roll in the zeroth dimension (my y axis, +1 goes below in the y axis)     
-          elif direction == 3:
-              departures = destinations.roll(1,1) #+1 roll in the 1st dimension (my x axis, +1 goes to the right)
-            #visuDepart = northDepartures.numpy()
-          
-        #### before making the move, find out which cells are pregnant and are going to move, for the birthing part 
-          pregMask0 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          pregMask1 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          pregMask2 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          if self.reproduction:
-              #la on check que ils sont au bout de la birth clock, et que ils vont partir :
-              pregMask0[:,:,0] = (self.world[:,:,2] == 0) & departures[:,:,0] 
-              pregMask1[:,:,1] = (self.world[:,:,2] == 0) & departures[:,:,0]
-              pregMask2[:,:,2] = (self.world[:,:,2] == 0) & departures[:,:,0]
-              #northDepartures is on all three channels the same, so we can select the first one
-              #visuPrefMask = pregMask0.numpy()
-              
-          #visuWorld = self.world.numpy()
-        #### make the move 
-          #visuDestinations = northDestinations.numpy()
-          #visuS = s.numpy()
-          self.world[destinations] = shiftedWorld[destinations]
-          self.world[departures] = 0 #empty completely the cell (included direction)
+    def deathMechanism(self, dyingMask):
+        
+        #dyingMask is a (h,w) filter. We want to stack it to fill up all channels 
+        dyingMaskFull = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        
+        dyingMaskFull[:,:,:] = torch.stack([dyingMask * self.nbChannels], dim=2) 
+        #le dim = 2 vient du fait qu'on veut les concatener sur la deuxieme dimension (celle ou j'ai mes channels)
+        visudyingMaskFull = dyingMaskFull.numpy()
+        self.world[dyingMaskFull] = 0 #set values of all channels at zero for the dying cell
+        visuWorld = self.world.numpy()
+        test=1
 
-          
-          return pregMask0, pregMask1, pregMask2
-      
+
     def move(self, shiftedWorld, direction):
           #movement of rodents
           # for destinations the filter must have same values on all channel because I want to replace the whole individual
           # and not only change its state infected or not 
           destinations = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          destinations[:, :, :] = torch.stack([(self.world[:, :, 0] == 0) & (shiftedWorld[:, :, 1] == direction)] * self.nbChannels, dim=self.nbChannels -1) # le -1 vient du fait qu'il commence a compter les dimensions a zero
+          destinations[:, :, :] = torch.stack([(self.world[:, :, 0] == 0) & (shiftedWorld[:, :, 1] == direction)] * self.nbChannels, dim=2) 
+          #le dim = 2 vient du fait qu'on veut les concatener sur la deuxieme dimension (celle ou j'ai mes channels)
           #the line above stack the (h,w) filters to fill up all channels in northDestinations
           visudesti = destinations.numpy()
           visuDepart = shiftedWorld.numpy()
@@ -346,14 +335,12 @@ class CA2D26_04(Automaton):
           visuDepart = departures.numpy()
           
         #### before making the move, find out which cells are pregnant and are going to move, for the birthing part 
-          pregMask0 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          pregMask1 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-          pregMask2 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+       
           if self.reproduction:
               #la on check que ils sont au bout de la birth clock, et que ils vont partir :
-              pregMask0[:,:,0] = (self.world[:,:,2] == 0) & departures[:,:,0] 
-              pregMask1[:,:,1] = (self.world[:,:,2] == 0) & departures[:,:,0]
-              pregMask2[:,:,2] = (self.world[:,:,2] == 0) & departures[:,:,0]
+            
+              pregMask = (self.world[:,:,2] == 0) & departures[:,:,0]
+              
               #northDepartures is on all three channels the same, so we can select the first one
               #visuPrefMask = pregMask0.numpy()
               
@@ -366,7 +353,8 @@ class CA2D26_04(Automaton):
           visuWorld = self.world.numpy()
           test = 1
           
-          return pregMask0, pregMask1, pregMask2  
+          return pregMask
+      
     def get_init_mat(self,rand_portion):
         """
             Get initialization matrix for CA

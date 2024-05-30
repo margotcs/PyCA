@@ -12,7 +12,8 @@ from NewCATry import NewCATry
 from CA2DCopy import CA2DCopy
 from CA2DMoreChannels import CA2DMoreChannels
 from CA2D25_04 import CA2D25_04
-from CA2D26_04 import CA2D26_04
+from CA2D23_05WorksWell import CA2D23_05WorksWell
+from CA2D23_05New import CA2D23_05New
 from utils import launch_video, add_frame, save_image
 pygame.init()
 W,H =400,300 # Width and height of the window #de base 400*300
@@ -59,11 +60,11 @@ k = 3
 #auto = CA2DCopy((H,W),random=random)
 #auto = CA2DMoreChannels((H,W),random=random)
 #auto = CA2D25_04((H,W), random = random)
-auto = CA2D26_04((H,W), random = random)
-
+#auto = CA2D23_05WorksWell((H,W), random = random)
+auto = CA2D23_05New((H,W), random = random)
 
 # Booleans for mouse events
-stopped= False #de base c'etait true
+stopped= True #de base c'etait true
 add_drag = False
 rem_drag = False
 recording=False
