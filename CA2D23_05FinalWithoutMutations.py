@@ -16,7 +16,7 @@ from Automaton import Automaton
 import torch, pygame, random
 from matplotlib.colors import hsv_to_rgb
 
-class CA2D23_05New(Automaton):
+class CA2D23_05FinalWithoutMutations(Automaton):
 
 
     def __init__(self, size, random=False):
