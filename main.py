@@ -67,7 +67,7 @@ k = 3
 auto = CA2D30_05_Mutations((H,W), random = random)
 
 # Booleans for mouse events
-stopped= True #de base c'etait true
+stopped= False #de base c'etait true
 add_drag = False
 rem_drag = False
 recording=False

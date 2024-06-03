@@ -39,11 +39,12 @@ class CA2D30_05_Mutations(Automaton):
         self.reproduction = True
         self.death = True
         self.probaMutSpread = 0.05 #between zero and one, if zero no mutation ever
-        self.probaMutLifeTime = 0 # same as above, proba that one non empty cell has a different lifetime 
+        self.probaMutLifeTime = 0.1 # same as above, proba that one non empty cell has a different lifetime 
+        self.lifeMutMax = 200 #maximum value life can take after mutation
         
         self.nbChannels = 5
         self.gestationTime = 1
-        self.lifeTimeMax = 16#25
+        self.lifeTimeMax = 22#25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
@@ -96,7 +97,7 @@ class CA2D30_05_Mutations(Automaton):
         #to all non empty cells:
         setLifeTimeMaxMask = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
         setLifeTimeMaxMask[:,:,4] = self.world[:,:,0] != 0
-        self.world[setLifeTimeMaxMask] = self.LifeTimeMax
+        self.world[setLifeTimeMaxMask] = self.lifeTimeMax
             
             
         """#truc de base : 
@@ -211,6 +212,9 @@ class CA2D30_05_Mutations(Automaton):
         # choose which ones will move
         movingDirection = random.randint(1, 4)
         #movingDirection = 2;
+        #before moving : save the life time max of each cell :
+        lifeTimeMaxBeforeMoving = self.world[:,:,4].detach().clone();
+        
         if movingDirection == 1:
             #move to the north :
             
@@ -230,14 +234,10 @@ class CA2D30_05_Mutations(Automaton):
             #move to the west :
             shiftedWorld = self.world.roll(-1,1) #roll -1 in the dimension 1: roll to the left. Like this at the same emplacement we see what's on the east
             pregMask = self.move(shiftedWorld, 4)
-   
-           #visuWorld = self.world.numpy()
-            
+       
         else:
             raise ValueError("Something went wrong with movingDirection")
-            
-            
-            
+        
         """ #old move
         # move to north :
         s = self.world.roll(-1, 0) #need to redo it because now infection happened
@@ -252,7 +252,9 @@ class CA2D30_05_Mutations(Automaton):
             # decrease le life time de 1, pour toutes les non empty cells 
             agingMask = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
             agingMask[:,:,3] = (self.world[:,:,0] != 0) 
+            visuWorld = self.world.numpy()
             self.world[agingMask] -= 1
+            visuWorld = self.world.numpy()
             if (self.world[:,:,3] < 0).any():
                 raise ValueError("Something went wrong with the death mechanism")
             
@@ -261,30 +263,14 @@ class CA2D30_05_Mutations(Automaton):
             dyingMask = (self.world[:,:,3] == 0) & (self.world[:,:,0] !=0)
             # above mask selects all non empty cells that have zero life time left.
             self.deathMechanism(dyingMask)
-      #### part about mutating life time ##
-      
-        random_probaMut2 = random.random()
-        if random_probaMut2 < self.probaMutLifeTime:
-           # ici changer la life time de une des cells 
-           newLife = random.random()*100 # la life max qu'on peut avoir en etant muté 
-           #c'est 100
-           xvalue = random.random()*self.h
-           yvalue = random.random()*self.w
-           while self.world[xvalue, yvalue, 0] == 0:
-               xvalue = random.random()*self.h
-               yvalue = random.random()*self.w
-           self.world[xvalue, yvalue, 3] = newLife
-          #probaSpreading = random.random() #we change probaSpreading
-          #by a random number between zero and 1 (orinally it's 1/8)
-      
       
       #### part about birth ##
         if self.reproduction:
             #les pregMask sont calculés pendant le deplacement, vu que seulement
             #ceux qui bougent ont un bébé
-            self.birth(pregMask) #function that makes the actual birth
+            self.birth(pregMask, lifeTimeMaxBeforeMoving) #function that makes the actual birth
 
-            visuWorld = self.world.numpy()
+            
             # a la fin : decrease la birth clock de 1, pour toutes les non empty cells 
             # mais si une non empty cell a deja sa birth clock a zero, alors il faut la remettre a gestTime
             diminishBirthClock = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
@@ -292,32 +278,26 @@ class CA2D30_05_Mutations(Automaton):
             restartBirthClock = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
             restartBirthClock[:,:,2] = (self.world[:,:,0] != 0) & (self.world[:,:,2] <= 0)
 
-            visudimin = diminishBirthClock.numpy()
-            visuRestart = restartBirthClock.numpy()
             self.world[diminishBirthClock] -= 1
             self.world[restartBirthClock] = self.gestationTime
-            #self.world[birthClockMask] = self.world[birthClockMask] -1 
-            visuWorld = self.world.numpy()
-            test = 1
-        
-        
-            
+
     
-    
-    def birth(self, pregMask):
+    def birth(self, pregMask, lifeTimeMaxBeforeMoving):
         
         #from a (h,w) mask, prepare the ones adapted to each channels:
         zeros = torch.zeros(self.h, self.w, dtype=torch.bool)
         pregMask0 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-        pregMask0[:,:,:] = torch.stack([pregMask, zeros, zeros, zeros], dim=2)
+        pregMask0[:,:,:] = torch.stack([pregMask, zeros, zeros, zeros, zeros], dim=2)
         pregMask1 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-        pregMask1[:,:,:] = torch.stack([zeros, pregMask,zeros, zeros], dim=2)
+        pregMask1[:,:,:] = torch.stack([zeros, pregMask,zeros, zeros, zeros], dim=2)
         pregMask2 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-        pregMask2[:,:,:] = torch.stack([zeros,zeros, pregMask, zeros], dim=2)
+        pregMask2[:,:,:] = torch.stack([zeros,zeros, pregMask, zeros, zeros], dim=2)
         pregMask3 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
-        pregMask3[:,:,:] = torch.stack([zeros, zeros, zeros, pregMask], dim=2)
+        pregMask3[:,:,:] = torch.stack([zeros, zeros, zeros, pregMask, zeros], dim=2)
+        pregMask4 = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        pregMask4[:,:,:] = torch.stack([zeros, zeros, zeros, zeros, pregMask], dim=2)
 
-            
+        visuPregMask = pregMask.numpy() 
         # set the type of the rodent which will be bornt
         self.world[pregMask0] = 1 #birth of a non infected rodent
         #set its direction
@@ -330,7 +310,28 @@ class CA2D30_05_Mutations(Automaton):
         
         #build the lifetime mask from pregMaskTest :
         visupregMask3 = pregMask3.numpy()
-        self.world[pregMask3] = self.lifeTime
+        self.world[pregMask3] = lifeTimeMaxBeforeMoving[pregMask]
+        
+        #set the maximum life time (same as the parent)
+        self.world[pregMask4] = lifeTimeMaxBeforeMoving[pregMask]
+        
+        #### part about mutating life time ##
+        
+        random_probaMut2 = random.random()
+        if random_probaMut2 < self.probaMutLifeTime:
+        # ici changer la life time de une des cells 
+        #newLife = random.random()*100 # la life max qu'on peut avoir en etant muté
+        #c'est 100
+            newLife = random.randint(1, self.lifeMutMax)
+            nonEmptyMask = self.world[:,:,0] != 0
+            trueIndices = torch.nonzero(nonEmptyMask, as_tuple=False)
+            trueIndicesList = trueIndices.tolist()
+            randomIndices = random.choice(trueIndicesList)
+            if self.world[randomIndices[0], randomIndices[1], 0] == 0 :
+                raise ValueError("Something went wrong with the lifetime mutation")
+            else:
+                self.world[randomIndices[0], randomIndices[1], 4] = newLife
+                self.world[randomIndices[0], randomIndices[1], 3] = newLife
         
     def deathMechanism(self, dyingMask):
         
@@ -375,8 +376,7 @@ class CA2D30_05_Mutations(Automaton):
               
               #northDepartures is on all three channels the same, so we can select the first one
               #visuPrefMask = pregMask0.numpy()
-              
-          visuWorld = self.world.numpy()
+       
         #### make the move 
           #visuDestinations = northDestinations.numpy()
           #visuS = s.numpy()
