@@ -7,6 +7,13 @@ from Camera import Camera
 from CA1D import CA1D, GeneralCA1D
 from CA2D import CA2D
 from Baricelli import Baricelli1D, Baricelli2D
+#from MonCA import MonCA§
+from NewCATry import NewCATry
+from CA2DCopy import CA2DCopy
+from CA2DMoreChannels import CA2DMoreChannels
+from CA2D25_04 import CA2D25_04
+from CA2D23_05WorksWell import CA2D23_05WorksWell
+from CA2D23_05FinalWithoutMutations import CA2D23_05FinalWithoutMutations
 from CA2D30_05_Mutations import CA2D30_05_Mutations
 
 from utils import launch_video, add_frame, save_image
@@ -20,12 +27,47 @@ running = True
 camera = Camera(W,H)
 
 random = True
+# Define here the automaton. Should be a subclass of Automaton, and implement 'draw()' and 'step()'.
+# draw() should update the (3,H,W) tensor self._worldmap, for the visualization
+#################   MULTICOLOR OUTER TOTALISTIC   ##################
+r = 3
+k = 3
+
+#auto = GeneralCA1D((H,W),wolfram_num=1203,r=r,k=k,random=random) 
+################################################################
+
+#################   ELEMENTARY CA   #################################
+# auto = CA1D((H,W),wolfram_num=90,random=True) 
+################################################################
 
 
-auto = CA2D30_05_Mutations((H,W), initialisation = 'big_circle')
+#################   BARICELLI   ####################################
+
+#################   1D   ###########################################
+# auto = Baricelli1D((H,W),n_species=6,reprod_collision=False)
+
+#################   2D   ###########################################
+#auto = Baricelli2D((H,W),n_species=7,reprod_collision=True,device='cuda')
+
+#auto = Baricelli2D((H,W),n_species=3,reprod_collision=True,device='cpu')
+
+################################################################
+
+#################   CA2D   #################################
+#auto = CA2D((H,W),b_num='3',s_num='23',random=random)
+
+###################################################################
+#auto = NewCATry((H,W))
+#auto = MonCA((H,W),n_species=3,reprod_collision=True,device='cpu')
+#auto = CA2DCopy((H,W),random=random)
+#auto = CA2DMoreChannels((H,W),random=random)
+#auto = CA2D25_04((H,W), random = random)
+#auto = CA2D23_05WorksWell((H,W), random = random)
+#auto = CA2D23_05FinalWithoutMutations((H,W), random = random)
+auto = CA2D30_05_Mutations((H,W), random = random)
 
 # Booleans for mouse events
-stopped= True #de base c'etait true
+stopped= False #de base c'etait true
 add_drag = False
 rem_drag = False
 recording=False
@@ -48,13 +90,6 @@ while running:
                 stopped=not(stopped)
             if(event.key == pygame.K_q):
                 running=False
-            if (event.key == pygame.K_RETURN):  # Handle Enter key press
-                stopped = True
-                auto.print_world_characteristics()
-            if (event.key == pygame.K_s):
-                stopped = True
-                auto.print_world_characteristics()
-                auto.saveDatas()
             if(event.key == pygame.K_r): # Press 'R' to start/stop recording
                 recording = not recording
                 if(not launch_vid and writer is not None):
@@ -79,8 +114,7 @@ while running:
         if(launch_vid):# If the video is not launched, we create it
             launch_vid = False
             #writer = launch_video((H,W),fps,'H265')
-            #writer = launch_video((H,W),fps, 'avc1')
-            writer = launch_video((1600, 1200), fps, 'avc1')
+            writer = launch_video((H,W),fps, 'avc1')
         add_frame(writer,world_state) # (in the future, we may add the zoomed frame instead of the full frame)
 
     # Clear the screen

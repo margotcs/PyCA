@@ -1,0 +1,49 @@
+
+Nit = 10;
+legendcells = strings(Nit,1)
+
+figure 
+hold on
+
+%% set new colors :
+colormap('jet'); % or any other colormap you prefer
+colors = colormap; % get the colormap
+nColors = size(colors, 1);
+
+newcolors = zeros(3,Nit);
+for i=1:Nit
+    colorIndex = round((i-1) / (Nit-1) * (nColors-1)) + 1; % map i to a color index
+    newcolors(i) = colors(colorIndex, :);
+end
+
+
+plotHandles = gobjects(Nit, 1);
+
+for i=1:10
+    lifetimeI = 8+2*i
+    filename = ['mut_False_lifeTime_',num2str(lifetimeI),'.h5']
+    gestationTime = h5read(filename,"/gestationTime");
+    lifetime = h5read(filename,"/lifeTimeMax");
+    totalCells = h5read(filename,"/totalCells"); totalCells = double(totalCells);
+    healthyCells = h5read(filename,"/healthyCellsNumber"); healthyCells = double(healthyCells);
+    infectedCells = h5read(filename,"/infectedCellsNumber"); infectedCells = double(infectedCells);
+    taille = size(infectedCells); taille = taille(1)
+    time = linspace(1, taille, taille);
+    time = 10*time';
+
+    text = strcat("t_{life} / t_{repro} = ", num2str(lifetime));
+    
+
+     % Map the index i to a color from the colormap
+    colorIndex = round((i-1) / (Nit-1) * (nColors-1)) + 1; % map i to a color index
+    test = colors(colorIndex, :);
+    legendcells(i,1) = text;
+    plot(time, infectedCells / healthyCells, 'o-','LineWidth', 2, 'Color', colors(colorIndex, :));
+    
+    
+    %plot(time, (infectedCells + healthyCells)./totalCells, 'o-', 'LineWidth',2, 'MarkerSize',3);
+end
+ 
+title(" # infected rodents / # healthy rodents", 'interpreter', 'tex', 'FontWeight', 'normal');
+%legend(plotHandles, legendcells)
+legend(legendcells);  % legendcell est un array de character ou de strings

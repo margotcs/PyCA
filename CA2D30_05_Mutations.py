@@ -15,16 +15,17 @@ Created on Mon Apr 22 14:36:50 2024
 from Automaton import Automaton
 import torch, pygame, random
 from matplotlib.colors import hsv_to_rgb
+import h5py
 
 class CA2D30_05_Mutations(Automaton):
 
 
-    def __init__(self, size, random=False):
+    def __init__(self, size, initialisation = 'init1'):
         super().__init__(size)
 
         #self.s_num = self.get_num_rule(s_num) # Translate string to number form
         #self.b_num = self.get_num_rule(b_num) # Translate string to number form
-        self.random = random
+        self.initialisation = initialisation
 
         #ca ca initialise avec un 2D world ou chaque element c'est un entier...
         # c'est bien ce que je veux c'est que chaque element puisse etre 0,1 ou 2. 
@@ -38,50 +39,88 @@ class CA2D30_05_Mutations(Automaton):
         self.infectedWorld = True
         self.reproduction = True
         self.death = True
-        self.probaMutSpread = 0.05 #between zero and one, if zero no mutation ever
-        self.probaMutLifeTime = 0.1 # same as above, proba that one non empty cell has a different lifetime 
-        self.lifeMutMax = 200 #maximum value life can take after mutation
+        self.isMutation = True
+        if self.isMutation:
+            self.probaMutSpread = 0.001 #between zero and one, if zero no mutation ever
+            self.probaMutLifeTime = 0.005#0.1 # same as above, proba that one non empty cell has a different lifetime
+        else:
+            self.probaMutSpread = 0 #between zero and one, if zero no mutation ever
+            self.probaMutLifeTime = 0 # same as above, proba that one non empty cell has a different lifetime
+                
+        self.lifeMutMax = 250 #maximum value life can take after mutation
         
         self.nbChannels = 5
         self.gestationTime = 1
-        self.lifeTimeMax = 22#25
+        self.lifeTimeMax = 20#25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
+        self.infectedCellsNumber = []
+        self.healthyCellsNumber = []
+        self.timeCounter = 0
 
     def reset(self):
         """
             Resets the automaton to the initial state.
         """
         self._worldmap = torch.zeros((3,self.h,self.w))
-
-        #self.world[:, :, 1] = 1 #this puts ones on the second channel (the one corresponding to directions)
-
-        self.world[:, :, 0] = 0  # Initialize the first channel with zeros
-
-        # Set specific regions of the first channel to different values
-        #self.world[3:13, :10, 0] = 2
-        self.world[200:200 + 10, 100:100 + 10, 0] = 1
-        self.world[100:100 + 10, 200:200 + 10, 0] = 2
-
-        # Set a 2x2 region in the center of the first channel to random integer values between 0 and 2
-        #self.world[self.w//2-1:self.w//2+1, self.h//2-1:self.h//2+1, 0] = torch.randint(0, 3, (2, 2))
         
-        # Set a 10*10 region to random integers between 0 and 2 
-        self.world[5:15, 5:15, 0] = torch.randint(0, 3, (10, 10))
+        if self.initialisation == 'init1':
+
+            self.world[:, :, 0] = 0  # Initialize the first channel with zeros
+    
+            # Set specific regions of the first channel to different values
+            #self.world[3:13, :10, 0] = 2
+            self.world[200:200 + 10, 100:100 + 10, 0] = 1
+            self.world[100:100 + 10, 200:200 + 10, 0] = 2
+    
+            # Set a 2x2 region in the center of the first channel to random integer values between 0 and 2
+            #self.world[self.w//2-1:self.w//2+1, self.h//2-1:self.h//2+1, 0] = torch.randint(0, 3, (2, 2))
+            
+            # Set a 10*10 region to random integers between 0 and 2 
+            self.world[5:15, 5:15, 0] = torch.randint(0, 3, (10, 10))
+        
+        if self.initialisation == 'random':
+            self.world[:,:,0] = torch.randint(0,3,(self.h,self.w))
+            
+        if self.initialisation == 'random_circles':
+            self.world[:, :, 0] = 0
+            num_circles = random.randint(3,10)
+            for _ in range(num_circles):
+                # Random center
+                center = (random.randint(0, self.w-1), random.randint(0, self.h-1))
+                # Random radius
+                radius = random.randint(2, 15)  # You can adjust the range of the radius
+                # Draw the circle with a random value between 1 and 2 (assuming you want 0 for the background)
+                self.draw_circle(center, radius, random.randint(1, 2))
+                
+        if self.initialisation == 'little_circles':
+            self.world[:, :, 0] = 0
+            num_circles = 12
+            for _ in range(num_circles):
+                # Random center
+                center = (random.randint(0, self.w-1), random.randint(0, self.h-1))
+                # Random radius
+                radius = random.randint(3, 5)  # You can adjust the range of the radius
+                # Draw the circle with a random value between 1 and 2 (assuming you want 0 for the background)
+                self.draw_circle(center, radius, random.randint(1, 2))
+        
+        if self.initialisation == 'big_circle':
+            self.world[:, :, 0] = 0
+            # Random center
+            center = (random.randint(0, self.w-1), random.randint(0, self.h-1))
+            radius = 25  # You can adjust the range of the radius
+            # Draw the circle with a random value between 1 and 2 (assuming you want 0 for the background)
+            self.draw_circle(center, radius, random.randint(1, 2))
+            
         
         #set directions :
         setDirMask =  torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
         setDirMask[:,:,1] = self.world[:,:,0] != 0
-        """
-        # give north directions to all non empty cells 
-        
-        self.world[setDirMask] = 2
-        """
+
         random_directions = torch.randint(1, 5, (self.h, self.w, self.nbChannels))
         random_directions = random_directions.to(self.world.dtype)
         self.world[setDirMask] = random_directions[setDirMask]
-        
         
         #initialize birth clock to gestationTime for all non empty cells :
         setBirthMask =  torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
@@ -98,23 +137,12 @@ class CA2D30_05_Mutations(Automaton):
         setLifeTimeMaxMask = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
         setLifeTimeMaxMask[:,:,4] = self.world[:,:,0] != 0
         self.world[setLifeTimeMaxMask] = self.lifeTimeMax
-            
-            
-        """#truc de base : 
-        if(self.random):
-            self.world = self.get_init_mat(0.5)
-        else:
-            self.world = torch.zeros_like(self.world,dtype=torch.int)
-            self.world[self.w//2-1:self.w//2+1,self.h//2-1:self.h//2+1]=torch.ranint(0,2,(2,2))
-        """
+
     def draw(self):
         """
             Updates the worldmap with the current state of the automaton.
         """
-        # ce qu'il y a de base : 
-        #self._worldmap = self.world[None,:,:].expand(3,-1,-1).to(dtype=torch.float)
-        
-        #ca je l'ai pris de Baricelli : 
+
         self._worldmap=self.get_color_world() # (3,H,W)
         
     def get_color_world(self): #vient de Baricelli
@@ -147,20 +175,14 @@ class CA2D30_05_Mutations(Automaton):
         if(event.type == pygame.KEYDOWN):
             if(event.key == pygame.K_DELETE):
                 self.reset() 
+            """
             if(event.key == pygame.K_n):
                 # Picks a random rule
                 b_rule = torch.randint(0,2**8,(1,)).item()
                 s_rule = torch.randint(0,2**8,(1,)).item()
                 self.change_num(s_rule,b_rule)
                 print('rule : ', (s_rule,b_rule))
-
-    def change_num(self,s_num : int, b_num : int):
-        """
-            Changes the rule of the automaton to the one specified by s_num and b_num
-        """
-        self.s_num = s_num
-        self.b_num = b_num
-        self.reset()
+            """
     
     def step(self):
         
@@ -170,8 +192,7 @@ class CA2D30_05_Mutations(Automaton):
         n, s = self.world.roll(1, 0), self.world.roll(-1, 0) #ca ca fait haut puis bas 
         w, e = self.world.roll(-1, 1), self.world.roll(1, 1) #ca ca fait gauche puis droite 
         # roll( shift, dimension along which we shift)
-        # sw, se = w.roll(1, 1), e.roll(1, 1)
-        #nw, ne = w.roll(-1, 1), e.roll(-1, 1)
+
         
         if self.infectedWorld:
             
@@ -185,6 +206,7 @@ class CA2D30_05_Mutations(Automaton):
             if random_probaMut < self.probaMutSpread:
                 probaSpreading = random.random() #we change probaSpreading
                 #by a random number between zero and 1 (orinally it's 1/8)
+                print("Mutation in virus spreading, new proba = ", probaSpreading)
                     
             infection = torch.zeros_like(self.world[:,:,0]);
             infection[w[:,:,0] == 2] = 1
@@ -196,22 +218,15 @@ class CA2D30_05_Mutations(Automaton):
             visuWorld = self.world.numpy()
             random_proba = torch.rand(self.h,self.w) #random between 0 and 1 same size as self.world
             infectedNeighboursMask = (infection == 1) & (self.world[:,:,0] == 1)
-            visuNeighbourInfect = infectedNeighboursMask.numpy()
             combinedMask = (random_proba < probaSpreading) & infectedNeighboursMask
-            visuCombinedMask = combinedMask.numpy()
-            #new_infected = torch.zeros_like(self.world[:,:,0])
-            #new_infected[combinedMask] = 1
-            #visunew_infected = new_infected.numpy()
             maskInfected = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
             maskInfected[:, :, 0] = combinedMask
-            #visuWorld = self.world.numpy()
             self.world[maskInfected] = 2
             visuWorld = self.world.numpy()
             test = 1
         
         # choose which ones will move
         movingDirection = random.randint(1, 4)
-        #movingDirection = 2;
         #before moving : save the life time max of each cell :
         lifeTimeMaxBeforeMoving = self.world[:,:,4].detach().clone();
         
@@ -238,13 +253,6 @@ class CA2D30_05_Mutations(Automaton):
         else:
             raise ValueError("Something went wrong with movingDirection")
         
-        """ #old move
-        # move to north :
-        s = self.world.roll(-1, 0) #need to redo it because now infection happened
-        # en fait ca devrait pas etre (1,0) le s ? ...
-        direction = 1
-        pregMask0, pregMask1, pregMask2 = self.moveOld(s, direction) 
-        """
       #### part about death ## 
       
         if self.death:
@@ -280,6 +288,14 @@ class CA2D30_05_Mutations(Automaton):
 
             self.world[diminishBirthClock] -= 1
             self.world[restartBirthClock] = self.gestationTime
+            
+      #### saving how many infected, healthy, etc.
+        #if self.timeCounter %10 == 0:
+        healthyCells, infectedCells = self.computeWorldCharacteristics()
+        self.healthyCellsNumber.append(healthyCells)
+        self.infectedCellsNumber.append(infectedCells)
+        self.timeCounter += 1
+          
 
     
     def birth(self, pregMask, lifeTimeMaxBeforeMoving):
@@ -333,6 +349,7 @@ class CA2D30_05_Mutations(Automaton):
             else:
                 self.world[randomIndices[0], randomIndices[1], 4] = newLife
                 self.world[randomIndices[0], randomIndices[1], 3] = newLife
+                print("Mutation on life time, new life = ", newLife)
         
     def deathMechanism(self, dyingMask):
         
@@ -341,10 +358,7 @@ class CA2D30_05_Mutations(Automaton):
         
         dyingMaskFull[:,:,:] = torch.stack([dyingMask * self.nbChannels], dim=2) 
         #le dim = 2 vient du fait qu'on veut les concatener sur la deuxieme dimension (celle ou j'ai mes channels)
-        visudyingMaskFull = dyingMaskFull.numpy()
         self.world[dyingMaskFull] = 0 #set values of all channels at zero for the dying cell
-        visuWorld = self.world.numpy()
-        test=1
 
 
     def move(self, shiftedWorld, direction):
@@ -355,9 +369,6 @@ class CA2D30_05_Mutations(Automaton):
           destinations[:, :, :] = torch.stack([(self.world[:, :, 0] == 0) & (shiftedWorld[:, :, 1] == direction)] * self.nbChannels, dim=2) 
           #le dim = 2 vient du fait qu'on veut les concatener sur la deuxieme dimension (celle ou j'ai mes channels)
           #the line above stack the (h,w) filters to fill up all channels in northDestinations
-          visudesti = destinations.numpy()
-          visuDepart = shiftedWorld.numpy()
-          visuWorld = self.world.numpy()
           if direction == 1:
               departures = destinations.roll(1,0)  #+1 roll in the zeroth dimension (my y axis, +1 goes below in the y axis)     
           elif direction == 2:
@@ -379,13 +390,8 @@ class CA2D30_05_Mutations(Automaton):
               #visuPrefMask = pregMask0.numpy()
        
         #### make the move 
-          #visuDestinations = northDestinations.numpy()
-          #visuS = s.numpy()
           self.world[destinations] = shiftedWorld[destinations]
           self.world[departures] = 0 #empty completely the cell (included direction)
-          visuWorld = self.world.numpy()
-          test = 1
-          
           return pregMask
       
     def get_init_mat(self,rand_portion):
@@ -408,3 +414,64 @@ class CA2D30_05_Mutations(Automaton):
 
 
         return init_mat # (B,H,W)
+            
+    def computeWorldCharacteristics(self):
+        healthyMask = (self.world[:,:,0] == 1)
+        healthyCells = torch.sum(healthyMask).item()
+        infectedMask = (self.world[:,:,0] == 2)
+        infectedCells = torch.sum(infectedMask).item()
+        emptyMask = (self.world[:,:,0] == 0)
+        emptyCells = torch.sum(emptyMask).item()
+        if ( (emptyCells + infectedCells + healthyCells) != self.w*self.h):
+            raise ValueError("Some cells are neither infected healthy or empty")
+        return healthyCells, infectedCells
+       
+                
+    def print_world_characteristics(self):
+         # Print some characteristics of self.world
+         #print("Number of infected:", self.n)
+         
+         healthyCells, infectedCells = self.computeWorldCharacteristics()
+         print("Number of healthy cells:", healthyCells)
+         print("Number of infected cells:", infectedCells)
+         emptyMask = (self.world[:,:,0] == 0)
+         emptyCells = torch.sum(emptyMask).item()
+         print("Time elapsed = ", self.timeCounter)
+         if (emptyCells + infectedCells + healthyCells != self.w*self.h):
+             raise ValueError("Some cells are neither infected healthy or empty")
+         else:
+             print("Total number of cells = ", emptyCells + infectedCells + healthyCells)
+                 
+         """
+         print(f"Shape: {self.world.shape}")
+         print(f"Max value: {torch.max(self.world)}")
+         print(f"Min value: {torch.min(self.world)}")
+         print(f"Mean value: {torch.mean(self.world.float())}")
+         """
+    
+    def saveDatas(self):   
+        with h5py.File(f'Results/AllTimesmut_{self.isMutation}_lifeTime_{self.lifeTimeMax}.h5', 'w') as hf:
+            hf.create_dataset('infectedCellsNumber', data=self.infectedCellsNumber)
+            hf.create_dataset('healthyCellsNumber', data=self.healthyCellsNumber)
+            hf.create_dataset('totalCells', data = self.h*self.w)
+            hf.create_dataset('gestationTime', data = self.gestationTime)
+            hf.create_dataset('lifeTimeMax', data = self.lifeTimeMax)
+    
+    def draw_circle(self, center, radius, value):
+        """
+        Draw a circle on the given world tensor.
+        
+        Parameters:
+        world (torch.Tensor): The tensor to draw on.
+        center (tuple): The (x, y) coordinates of the circle's center.
+        radius (int): The radius of the circle.
+        value (int): The value to fill inside the circle.
+        """
+        world = self.world[:,:,0]
+        for y in range(max(0, center[1] - radius), min(world.shape[0], center[1] + radius + 1)):
+            for x in range(max(0, center[0] - radius), min(world.shape[1], center[0] + radius + 1)):
+                if (x - center[0]) ** 2 + (y - center[1]) ** 2 <= radius ** 2:
+                    world[y, x] = random.randint(0,2)
+                
+                
+                

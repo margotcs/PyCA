@@ -1,0 +1,29 @@
+
+lifeTime = 21;
+    %filename = ['AllTimesmut_False_lifeTime_',num2str(lifeTime),'.h5']
+    filename = ['mut_False_lifeTime_',num2str(lifeTime),'.h5']
+    gestationTime = h5read(filename,"/gestationTime");
+    lifetime = h5read(filename,"/lifeTimeMax");
+    totalCells = h5read(filename,"/totalCells"); totalCells = double(totalCells);
+    healthyCells = h5read(filename,"/healthyCellsNumber"); healthyCells = double(healthyCells);
+    infectedCells = h5read(filename,"/infectedCellsNumber"); infectedCells = double(infectedCells);
+    taille = size(infectedCells); taille = taille(1)
+    time = linspace(1, taille, taille);
+    time = 10*time';
+
+    vecNplus1 = [infectedCells', 0]; vecNplus1 = vecNplus1';
+    vecN = [0 infectedCells']; vecN = vecN';
+    vecNplus1 = vecNplus1(2:end-1);
+    vecN = vecN(2:end-1);
+    size = size(vecN); size(1);
+
+    figure
+    %plot(vecN, vecNplus1, 'o-', 'LineWidth', 2, 'MarkerSize',2);
+   
+%     x = linspace(0,3*pi,200);
+% y = cos(x) + rand(1,200);
+% c = linspace(1,10,length(x));
+% scatter(x,y,[],c)
+    scatter(vecN, vecNplus1, [], linspace(1,) )
+%title(titre, 'interpreter', 'tex', 'FontWeight', 'normal');
+%legend(legendcell);  % legendcell est un array de character ou de strings
