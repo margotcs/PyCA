@@ -41,9 +41,9 @@ class CA2D30_05_Mutations(Automaton):
         self.probaMutSpread = 0.05 #between zero and one, if zero no mutation ever
         self.probaMutLifeTime = 0 # same as above, proba that one non empty cell has a different lifetime 
         
-        self.nbChannels = 4
+        self.nbChannels = 5
         self.gestationTime = 1
-        self.lifeTime = 16#25
+        self.lifeTimeMax = 16#25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
@@ -90,7 +90,14 @@ class CA2D30_05_Mutations(Automaton):
         #initialize death clock : give lifeTime to all non empty cells : 
         setDeathMask =  torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
         setDeathMask[:,:,3] = self.world[:,:,0] != 0
-        self.world[setDeathMask] = self.lifeTime   
+        self.world[setDeathMask] = self.lifeTimeMax   
+        
+        #initialize life time Max : give at first the normal maximum lifetime 
+        #to all non empty cells:
+        setLifeTimeMaxMask = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
+        setLifeTimeMaxMask[:,:,4] = self.world[:,:,0] != 0
+        self.world[setLifeTimeMaxMask] = self.LifeTimeMax
+            
             
         """#truc de base : 
         if(self.random):
