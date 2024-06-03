@@ -38,10 +38,12 @@ class CA2D30_05_Mutations(Automaton):
         self.infectedWorld = True
         self.reproduction = True
         self.death = True
-        self.probaMutSpread = 1 #between zero and one, if zero no mutation ever
+        self.probaMutSpread = 0.05 #between zero and one, if zero no mutation ever
+        self.probaMutLifeTime = 0 # same as above, proba that one non empty cell has a different lifetime 
+        
         self.nbChannels = 4
         self.gestationTime = 1
-        self.lifeTime = 25
+        self.lifeTime = 16#25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
@@ -115,23 +117,18 @@ class CA2D30_05_Mutations(Automaton):
         """
     
         colorize=torch.zeros((self.h,self.w,3),dtype=torch.float) # (H,W,3)
-        #attention c'est en hsv
-        colorize[..., 0] = torch.abs(self.world[:, :, 0]) / 3
-        colorize[..., 1] = torch.abs(self.world[:, :, 0]) / 3
-        colorize[..., 2] = torch.abs(self.world[:, :, 0]) / 3
-
+        #hsv colors 
         
-        # Green channel: Assign intensity based on the value of self.world
-        """
-        colorize[..., 0] = torch.where(self.world == 1, 0.5, 0.0)  # Assign 1.0 for value 2, 0.0 otherwise
-        colorize[..., 1] = torch.where(self.world == 1, 1.0, 0.0)
-        colorize[..., 2] = torch.where(self.world == 1, 1.0, 0.0)  # Assign 1.0 for value 0, 0.0 otherwise
+        # Assign very light green for empty cell 
+        colorize[self.world[:, :, 0] == 0] = torch.tensor([152/360, 0.17, 0.9], dtype=torch.float)
 
-        # Blue channel: Assign intensity based on the value of self.world
-        colorize[..., 0] = torch.where(self.world == 0, 0.0, 0.0)  # Assign 1.0 for value 2, 0.0 otherwise
-        colorize[..., 1] = torch.where(self.world == 0, 0.0, 0.0)
-        colorize[..., 2] = torch.where(self.world == 0, 0.0, 0.0)  # Assign 1.0 for value 0, 0.0 otherwise
-        """
+        # Assign blue for self.world[:, :, 0] == 1
+        colorize[self.world[:, :, 0] == 1] = torch.tensor([174 / 360, 0.94, 0.70], dtype=torch.float)
+                                                        
+        # Assign red for self.world[:, :, 0] == 2 
+        colorize[self.world[:, :, 0] == 2] = torch.tensor([354/360, 0.94, 0.7], dtype=torch.float)
+        
+        
         # Convert HSV to RGB and permute dimensions
         colorize = torch.tensor(hsv_to_rgb(colorize.cpu().numpy())).permute(2, 0, 1)  # (3, H, W)
 
@@ -256,9 +253,24 @@ class CA2D30_05_Mutations(Automaton):
             visuWorld = self.world.numpy()
             dyingMask = (self.world[:,:,3] == 0) & (self.world[:,:,0] !=0)
             # above mask selects all non empty cells that have zero life time left.
-            visudyingMask = dyingMask.numpy()
             self.deathMechanism(dyingMask)
-            
+      #### part about mutating life time ##
+      
+        random_probaMut2 = random.random()
+        if random_probaMut2 < self.probaMutLifeTime:
+           # ici changer la life time de une des cells 
+           newLife = random.random()*100 # la life max qu'on peut avoir en etant muté 
+           #c'est 100
+           xvalue = random.random()*self.h
+           yvalue = random.random()*self.w
+           while self.world[xvalue, yvalue, 0] == 0:
+               xvalue = random.random()*self.h
+               yvalue = random.random()*self.w
+           self.world[xvalue, yvalue, 3] = newLife
+          #probaSpreading = random.random() #we change probaSpreading
+          #by a random number between zero and 1 (orinally it's 1/8)
+      
+      
       #### part about birth ##
         if self.reproduction:
             #les pregMask sont calculés pendant le deplacement, vu que seulement
