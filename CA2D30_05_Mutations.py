@@ -322,7 +322,8 @@ class CA2D30_05_Mutations(Automaton):
         # ici changer la life time de une des cells 
         #newLife = random.random()*100 # la life max qu'on peut avoir en etant muté
         #c'est 100
-            newLife = random.randint(1, self.lifeMutMax)
+            newLife = 200
+            #newLife = random.randint(1, self.lifeMutMax)
             nonEmptyMask = self.world[:,:,0] != 0
             trueIndices = torch.nonzero(nonEmptyMask, as_tuple=False)
             trueIndicesList = trueIndices.tolist()

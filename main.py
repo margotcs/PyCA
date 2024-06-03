@@ -113,7 +113,8 @@ while running:
     if(recording):
         if(launch_vid):# If the video is not launched, we create it
             launch_vid = False
-            writer = launch_video((H,W),fps,'H265')
+            #writer = launch_video((H,W),fps,'H265')
+            writer = launch_video((H,W),fps, 'avc1')
         add_frame(writer,world_state) # (in the future, we may add the zoomed frame instead of the full frame)
 
     # Clear the screen
