@@ -41,17 +41,19 @@ class CA2D30_05_Mutations(Automaton):
         self.death = True
         self.isMutation = True
         if self.isMutation:
-            self.probaMutSpread = 0.001 #between zero and one, if zero no mutation ever
-            self.probaMutLifeTime = 0.005#0.1 # same as above, proba that one non empty cell has a different lifetime
+            self.probaMutSpread = 0.002 #between zero and one, if zero no mutation ever
+            self.probaMutLifeTime = 0.002#0.1 # same as above, proba that one non empty cell has a different lifetime
         else:
             self.probaMutSpread = 0 #between zero and one, if zero no mutation ever
             self.probaMutLifeTime = 0 # same as above, proba that one non empty cell has a different lifetime
                 
-        self.lifeMutMax = 250 #maximum value life can take after mutation
+        self.lifeMutMax = 200 #maximum value life can take after mutation
         
         self.nbChannels = 5
-        self.gestationTime = 1
-        self.lifeTimeMax = 20#25
+        self.probaSpreading = 1/8 #if no mutation happens rodent will get infected
+        #because of their neighbours with proba 1/8
+        self.gestationTime = 3
+        self.lifeTimeMax = 30#25
         self.world = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.int)
         self.reset()
 
@@ -196,17 +198,16 @@ class CA2D30_05_Mutations(Automaton):
         
         if self.infectedWorld:
             
-            probaSpreading = 1/8 #if no mutation happens rodent will get infected
-            #because of their neighbours with proba 1/8
+            
             
             #at each step there is a very small proba that the 
             #epidemic will change infection rate
             
             random_probaMut = random.random()
             if random_probaMut < self.probaMutSpread:
-                probaSpreading = random.random() #we change probaSpreading
+                self.probaSpreading = random.random() #we change probaSpreading
                 #by a random number between zero and 1 (orinally it's 1/8)
-                print("Mutation in virus spreading, new proba = ", probaSpreading)
+                print("Mutation in virus spreading, new proba = ", self.probaSpreading)
                     
             infection = torch.zeros_like(self.world[:,:,0]);
             infection[w[:,:,0] == 2] = 1
@@ -217,8 +218,8 @@ class CA2D30_05_Mutations(Automaton):
             visuInfection = infection.numpy()
             visuWorld = self.world.numpy()
             random_proba = torch.rand(self.h,self.w) #random between 0 and 1 same size as self.world
-            infectedNeighboursMask = (infection == 1) & (self.world[:,:,0] == 1)
-            combinedMask = (random_proba < probaSpreading) & infectedNeighboursMask
+            infectedNeighboursMask = (infection == 1) & (self.world[:,:,0] == 1)   
+            combinedMask = (random_proba < self.probaSpreading) & infectedNeighboursMask
             maskInfected = torch.zeros(self.h, self.w, self.nbChannels, dtype=torch.bool)
             maskInfected[:, :, 0] = combinedMask
             self.world[maskInfected] = 2
@@ -338,8 +339,8 @@ class CA2D30_05_Mutations(Automaton):
         # ici changer la life time de une des cells 
         #newLife = random.random()*100 # la life max qu'on peut avoir en etant muté
         #c'est 100
-            newLife = 200
-            #newLife = random.randint(1, self.lifeMutMax)
+            #newLife = 200
+            newLife = random.randint(1, self.lifeMutMax)
             nonEmptyMask = self.world[:,:,0] != 0
             trueIndices = torch.nonzero(nonEmptyMask, as_tuple=False)
             trueIndicesList = trueIndices.tolist()
